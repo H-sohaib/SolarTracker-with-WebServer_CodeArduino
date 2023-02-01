@@ -1,15 +1,19 @@
 #include <Arduino.h>
-#define CAYENNE_PRINT Serial     // Comment this out to disable prints and save space
-#include <CayenneMQTTEthernet.h> // Change this to use a different communication device. See Communications examples.
+#include <SPI.h>
+#include <Ethernet.h>
 #include <Servo.h>
 // ********//
 // decalarations des instance de servvo moteur
 Servo verti_servo;
 Servo hori_servo;
 
-char username[] = "9f4e0bf0-8137-11ed-b193-d9789b2af62b";
-char password[] = "288e236b1ab2a8faa0730f036ec42e2f976f530a";
-char clientID[] = "d7b34a90-9aab-11ed-b193-d9789b2af62b";
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+
+EthernetClient client;
+
+int    HTTP_PORT   = 80 ;
+String HTTP_METHOD = "GET";
+char   HOST_NAME[] = "192.168.56.242"; // change to your PC's IP address
 
 // replacer des nemro des PINs par des variables siginifique
 #define ldrtopr A0    // top-right LDR
@@ -30,15 +34,20 @@ int Hsensibility = 30;      // measurement sensitivity
 int Vsensibility = 30;      // measurement sensitivity
 int manuelSensibility = 60; // measurement sensitivity
 
-int mode, axe, modeState, axeState, potValue, HprevpotValue, VprevpotValue = 0;
+int mode=1, axe, modeState, axeState, potValue, HprevpotValue, VprevpotValue = 0;
 // declaration des variable pour recevoie des valeur des chaque LDR
 int topl, topr, botl, botr, avgtop, avgbot, avgleft, avgright = 0;
 // variable pour stocker la position acctuelle du chaque servo
 int leftRightPosition, upDownPosition = 0;
+//variable pour lire les valeurs des servo
+int ch,cv;
+String cy="";
 // decalration des antetette des fontions utiliser
 void manualMode();
 void automaticMode();
 void modeSwicher();
+void sendVal();
+void getVal();
 // ------------------------------------------------------------------------------------------------------------//
 void setup()
 {
@@ -50,7 +59,6 @@ void setup()
   // **************//
   // initialisation des Serial et les E/S direction
   Serial.begin(9600);
-  Cayenne.begin(username, password, clientID);
   pinMode(modeButton, INPUT_PULLUP); // Mode switch Button
   pinMode(axeButton, INPUT_PULLUP);  // Axis switch
   pinMode(manueLed, OUTPUT);
@@ -61,6 +69,11 @@ void setup()
   verti_servo.write(90);
   hori_servo.write(40);
 
+  // obtenir l'adresse IP du machine
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to obtaining an IP address using DHCP");
+    while(true);
+  }
   Serial.println("initialise");
   delay(2000);
 }
@@ -85,7 +98,6 @@ void loop()
     digitalWrite(autoLed, HIGH);
     automaticMode();
   }
-  Cayenne.loop();
 }
 
 void automaticMode()
@@ -212,50 +224,122 @@ void manualMode()
     }
   }
 }
-CAYENNE_OUT(0) {
-  // lire la valeur de ldr top right
- int value=analogRead(ldrtopr); 
- Cayenne.virtualWrite(0, value);
+void sendVal(){
+  
+  String PATH_NAME   = "/push";
+
+  // topr = 449; //analogRead(ldrtopr); // top right LDR
+  // topl = 233;//analogRead(ldrtopl); // top left LDR
+  // botr = 925;//analogRead(ldrbotr); // bot right LDR
+  // botl = 123;//analogRead(ldrbotl); // bot left LDR
+  // leftRightPosition = 139;//hori_servo.read();
+  // upDownPosition = 65;//verti_servo.read();
+  // mode =0;
+  String qSL1 ="?ldrtr=";
+  String qSL2 ="&ldrtl=";
+  String qSL3 ="&ldrbr=";
+  String qSL4 ="&ldrbl=";
+  String qSHp ="&hposi=";
+  String qSVp ="&vposi=";
+  String qSM ="&mode=";
+   // connect to web server on port 80:
+  if(client.connect(HOST_NAME, HTTP_PORT)) {
+    // if connected:
+    Serial.println("Connected to server");
+    // make a HTTP request:
+    // send HTTP header
+    client.println(HTTP_METHOD + " " + PATH_NAME + qSL1 + topr + qSL2 + topl + qSL3 + botr + qSL4 + botl +  qSHp + leftRightPosition + qSVp + upDownPosition + qSM + mode + " HTTP/1.1");
+    client.println("Host: " + String(HOST_NAME));
+    client.println(); // end HTTP header
+
+    while(client.connected()) {
+      if(client.available()){
+        // read an incoming byte from the server and print it to serial monitor:
+        char c = client.read();
+        Serial.print(c);
+      }
+    }
+
+    // the server's disconnected, stop the client:
+    client.stop();
+    Serial.println();
+    Serial.println("disconnected");
+  } else {// if not connected:
+    Serial.println("connection failed");
+  }
 }
-CAYENNE_OUT(1) {
-  // lire la valeur de ldr top left
- int value=analogRead(ldrtopl); 
- Cayenne.virtualWrite(1, value);
-}
-CAYENNE_OUT(2) {
-  // lire la valeur de ldr bottom right
- int value=analogRead(ldrbotr); 
- Cayenne.virtualWrite(2, value);
-}
-CAYENNE_OUT(3) {
-  // lire la valeur de ldr bottom left
- int value=analogRead(ldrbotl); 
- Cayenne.virtualWrite(3, value);
-}
-CAYENNE_OUT(4) {
-  // lire la valeur de servo vertical
- int value=verti_servo.read();
- Cayenne.virtualWrite(4, value);
-}
-CAYENNE_OUT(5) {
-  // lire la valeur de servo horizontal
- int value=hori_servo.read();
- Cayenne.virtualWrite(5, value);
-}
-CAYENNE_IN(6) {
-  // commander le servo vertical
- int value = getValue.asInt();
- CAYENNE_LOG("Channel %d, pin %d, value %d", 6, vertiPin, value);
- verti_servo.write(value);
-}
-CAYENNE_IN(7) {
-  // commnader le servo horizontal
- int value = getValue.asInt();
- CAYENNE_LOG("Channel %d, pin %d, value %d", 7, horiPin, value);
- hori_servo.write(value);
-}
-CAYENNE_IN(8) {
-  // switch mode
- mode = getValue.asInt();
- CAYENNE_LOG("Channel %d, pin %d, value %d", 8, modeButton, mode);
+void getVal(){
+  String PATH_NAME   = "/get";
+   if(client.connect(HOST_NAME,HTTP_PORT))
+  {
+    Serial.println("connected");
+
+    // add the Host here
+    client.println(HTTP_METHOD + " " + PATH_NAME + " HTTP/1.1");
+    client.println("Host: " + String(HOST_NAME));
+    client.println();
+
+    while(client.connected()) {
+      if(client.available()){
+        // read an incoming byte from the server and print it to serial monitor:
+        char c = client.read();
+        Serial.print(c);
+        cy=cy+c;
+      }
+    }
+        Serial.println();
+        mode=cy[179]-'0';
+        Serial.println(mode);
+        if(cy[182]==','){
+        cv=cy[181]-'0';
+          if(cy[184]==' '){
+          ch=cy[183]-'0';
+          }
+          if(cy[185]==' '){
+          ch=(10*(cy[183]-'0'))+cy[184]-'0';
+          }
+          if(cy[186]==' '){
+            ch=(100*(cy[183]-'0'))+(10*(cy[184]-'0'))+(cy[185]-'0');
+          }
+        }
+        if(cy[183]==','){
+        cv=(10*(cy[181]-'0'))+cy[182]-'0';
+          if(cy[185]==' '){
+          ch=cy[184]-'0';
+          }
+          if(cy[186]==' '){
+          ch=(10*(cy[184]-'0'))+cy[185]-'0';
+          }
+          if(cy[187]==' '){
+            ch=(100*(cy[184]-'0'))+(10*(cy[185]-'0'))+(cy[186]-'0');
+          }
+        }
+        if(cy[184]==','){
+          cv=(100*(cy[181]-'0'))+(10*(cy[182]-'0'))+(cy[183]-'0');
+          if(cy[186]==' '){
+          ch=cy[185]-'0';
+          }
+          if(cy[187]==' '){
+          ch=(10*(cy[185]-'0'))+cy[186]-'0';
+          }
+          if(cy[188]==' '){
+            ch=(100*(cy[185]-'0'))+(10*(cy[186]-'0'))+(cy[187]-'0');
+          }
+        }
+        leftRightPosition=cv;
+        Serial.println(leftRightPosition);
+        upDownPosition=ch;
+        Serial.println(upDownPosition);
+        verti_servo.write(leftRightPosition);
+        hori_servo.write(upDownPosition);
+        cv=0;
+        ch=0;
+        cy="";
+    // the server's disconnected, stop the client:
+    client.stop();
+    Serial.println();
+    Serial.println("disconnected");
+  } else {// if not connected:
+    Serial.println("connection failed");
+  }
 }
