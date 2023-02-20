@@ -36,14 +36,14 @@ int mode = 0;
 // declaration des variable pour recevoie des valeur des chaque LDR
 int topl, topr, botl, botr, avgtop, avgbot, avgleft, avgright = 0;
 // variable pour stocker la position acctuelle du chaque servo
-int leftRightPosition =0, upDownPosition = 40;
+int leftRightPosition, upDownPosition = 0;
 int step = 1;
 
 
 void setup(){
     // ******//
   // initialisation des Serial et les E/S direction
-  Serial.begin(115200);
+  Serial.begin(9600);
   pinMode(manueLed, OUTPUT);
   pinMode(autoLed, OUTPUT);
 
@@ -51,7 +51,7 @@ void setup(){
   hori_servo.attach(horiPin);   // Servo motor right-left movement
   verti_servo.write(40);
   delay(500) ;
-  verti_servo.write(0);
+  verti_servo.write(70);
   hori_servo.write(90);
   
   Serial.println("initialisation done .");
@@ -122,7 +122,7 @@ void loop(){
   // commande les moteur : si la valeur absulue différent entre right et left > de la sensibilite
   if (abs(Vdifferent) >= Vsensibility)
   {
-    // upDownPosition = verti_servo.read();
+    upDownPosition = verti_servo.read();
     Serial.print("up down Position : ");
     Serial.println(upDownPosition);
     if (Vdifferent < 0)
