@@ -18,9 +18,6 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 #define ldrtopl A1    // top-left LDR white Brown
 #define ldrbotr A2    // bottom-right LDR white green
 #define ldrbotl A3    // bottom-left LDR Blue
-// Signalisation LEDs
-#define manueLed 2
-#define autoLed 3 // push button pour switcher le controle entre l'axe horizontal et vertical
 // les PIN qu'on va brancher les sevo motor
 #define horiPin 7
 #define vertiPin 9
@@ -28,28 +25,31 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 int Hsensibility = 30;      // measurement sensitivity
 int Vsensibility = 30;      // measurement sensitivity
 int mode = 0;
+// min and max of servo mouv
+int H_min = 25 , H_max = 173 , V_min = 0 , V_max = 180  ; 
 // declaration des variable pour recevoie des valeur des chaque LDR
 int topl, topr, botl, botr, avgtop, avgbot, avgleft, avgright = 0;
 // variable pour stocker la position acctuelle du chaque servo
 int leftRightPosition, upDownPosition = 0;
-int step = 7;
+int step = 5;
 //variable pour lire les valeurs des servo
 int ch,cv;
 String cy="";
+// Power variable  
+float tension = 1.0  , courant = 0.2;
+// pre position get by getControlObject func
+int pre_Hposi , pre_Vposi = 0 ;
 // decalration des antetette des fontions utiliser
 void manualMode();
 void automaticMode();
-void modeSwicher();
-void sendVal();
-void getVal();
-void getmode();
+void pushPosition() ;
+void pushLDR_Power();
+void getControlObject();
 // ------------------------------------------------------------------------------------------------------------//
 void setup()
 {
   // initialisation des Serial et les E/S direction
   Serial.begin(115200);
-  pinMode(manueLed, OUTPUT);
-  pinMode(autoLed, OUTPUT);
 
   verti_servo.attach(vertiPin); // Servo motor up-down movement
   hori_servo.attach(horiPin);   // Servo motor right-left movement
@@ -61,29 +61,26 @@ void setup()
     Serial.println("Failed to obtaining an IP address using DHCP");
     while(true);
   }
-  Serial.println("initialisation done .");
+  Serial.println("Initialisation done .");
   delay(2000);
 }
 
 void loop()
 {
   // pour notifier la mode actuelle et activer le mode convonable
-  getmode();
+  pushLDR_Power() ;
+  getControlObject();
   Serial.print("mode=");
   Serial.println(mode);
   if (mode == 0)
   {
     Serial.println("Manual");
     manualMode();
-    digitalWrite(manueLed, HIGH);
-    digitalWrite(autoLed, LOW);
   }
   else
   {
     Serial.println("Automatic");
     automaticMode();
-    digitalWrite(manueLed, LOW);
-    digitalWrite(autoLed, HIGH);
   }
 }
 
@@ -130,14 +127,14 @@ void automaticMode()
     Serial.println(leftRightPosition);
     if (Hdifferent > 0)
     {
-      if(leftRightPosition < 173)
+      if(leftRightPosition < H_max)
       {   
         hori_servo.write(leftRightPosition + step);
       }
     }
     if (Hdifferent < 0)
     {
-      if (leftRightPosition > 7)
+      if (leftRightPosition > H_min)
       {
         hori_servo.write(leftRightPosition - step);
       }
@@ -154,44 +151,42 @@ void automaticMode()
     Serial.println(upDownPosition);
     if (Vdifferent > 0)
     {
-      if (upDownPosition < 173)
+      if (upDownPosition < V_max)
       {
         verti_servo.write(upDownPosition + step);
       }
     }
     if (Vdifferent < 0)
     {
-      if (upDownPosition > 7)
+      if (upDownPosition > V_min)
       {
         verti_servo.write(upDownPosition - step);
       }
     }
     Serial.println("--------- vertical Servo Control -------------");
   }
-  sendVal();
+  pushPosition();
 }
 
 void manualMode()
 {
-  getVal();
+  leftRightPosition = pre_Hposi ;
+  upDownPosition = pre_Vposi ; 
+  verti_servo.write(upDownPosition) ; 
+  hori_servo.write(leftRightPosition) ; 
 }
-void sendVal(){
-  
+
+void pushPosition(){
   String PATH_NAME   = "/push";
-  String qSL1 ="?ldrtr=";
-  String qSL2 ="&ldrtl=";
-  String qSL3 ="&ldrbr=";
-  String qSL4 ="&ldrbl=";
-  String qSHp ="&hposi=";
+  String qSHp ="?hposi=";
   String qSVp ="&vposi=";
-  String qSM ="&mode=";
    // connect to web server on port 80:
   if(client.connect(HOST_NAME, HTTP_PORT)) {
     // if connected:
     Serial.println("Connected to server");
     // make a HTTP request:
     // send HTTP header
-    client.println(HTTP_METHOD + " " + PATH_NAME + qSL1 + topr + qSL2 + topl + qSL3 + botr + qSL4 + botl +  qSHp + leftRightPosition + qSVp + upDownPosition + qSM + mode + " HTTP/1.1");
+    client.println(HTTP_METHOD + " " + PATH_NAME + qSHp + leftRightPosition + qSVp + upDownPosition + " HTTP/1.1");
     client.println("Host: " + String(HOST_NAME));
     client.println(); // end HTTP header
 
@@ -211,7 +206,35 @@ void sendVal(){
     Serial.println("connection failed");
   }
 }
-void getVal(){
+
+void pushLDR_Power(){
+   // connect to web server on port 80:
+  if(client.connect(HOST_NAME, HTTP_PORT)) {
+    // if connected:
+    Serial.println("Connected to server");
+    // make a HTTP request:
+    // send HTTP header
+    client.println(HTTP_METHOD + " " + "/push" + "?ldrtr=" + topr + "&ldrtl=" + topl + "&ldrbr=" + botr + "&ldrbl=" + botl + "&tension=" + tension + "&courant=" + courant + " HTTP/1.1");
+    client.println("Host: " + String(HOST_NAME));
+    client.println(); // end HTTP header
+
+    while(client.connected()) {
+      if(client.available()){
+        // read an incoming byte from the server and print it to serial monitor:
+        char c = client.read();
+        // Serial.print(c);
+      }
+    }
+
+    // the server's disconnected, stop the client:
+    client.stop();
+    Serial.println();
+    Serial.println("disconnected");
+  } else {// if not connected:
+    Serial.println("connection failed");
+  }  
+}
+void getControlObject(){
   String PATH_NAME   = "/get";
    if(client.connect(HOST_NAME,HTTP_PORT))
   {
@@ -230,6 +253,8 @@ void getVal(){
         cy=cy+c;
       }
     }
+  // *******************************************************
+// get Servo Position
         Serial.println();
         // preMode=cy[179]-'0';
         // Serial.println(preMode);
@@ -269,45 +294,21 @@ void getVal(){
             ch=(100*(cy[185]-'0'))+(10*(cy[186]-'0'))+(cy[187]-'0');
           }
         }
-        int h =cv;
-        Serial.println(h);
-        hori_servo.write(h);
-        int v =ch;
-        Serial.println(v);
-        verti_servo.write(v);
+        pre_Hposi =cv;
+        Serial.println(pre_Hposi);
+        // hori_servo.write(h);
+        pre_Vposi=ch;
+        Serial.println(pre_Vposi);
+        // verti_servo.write(v);
+  // ********************************************************
+// end get Servo Position
+// get mode 
+        mode=cy[179]-'0';
+// end get mode         
         cv=0;
         ch=0;
         cy="";
-    // the server's disconnected, stop the client:
-    client.stop();
-    Serial.println();
-    Serial.println("disconnected");
-  } else {// if not connected:
-    Serial.println("connection failed");
-  }
-}
-void getmode(){
-  String PATH_NAME   = "/get";
-   if(client.connect(HOST_NAME,HTTP_PORT))
-  {
-    Serial.println("connected");
-
-    // add the Host here
-    client.println(HTTP_METHOD + " " + PATH_NAME + " HTTP/1.1");
-    client.println("Host: " + String(HOST_NAME));
-    client.println();
-
-    while(client.connected()) {
-      if(client.available()){
-        // read an incoming byte from the server and print it to serial monitor:
-        char c = client.read();
-        // Serial.print(c);
-        cy=cy+c;
-      }
-    }
-        mode=cy[179]-'0';
-        // Serial.println(preMode);
-        cy="";
+  
     // the server's disconnected, stop the client:
     client.stop();
     Serial.println();
