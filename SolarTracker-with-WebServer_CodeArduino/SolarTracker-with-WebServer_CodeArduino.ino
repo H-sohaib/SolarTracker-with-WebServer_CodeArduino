@@ -14,8 +14,8 @@ char   HOST_NAME[] = "192.168.187.242"; // change to your PC's IP address
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 // replacer des nemro des PINs par des variables siginifique
-#define ldrtopr A0    // top-right LDR orange
-#define ldrtopl A1    // top-left LDR white Brown
+#define ldrtopr A15   // top-right LDR orange
+#define ldrtopl A11   // top-left LDR white Brown
 #define ldrbotr A2    // bottom-right LDR white green
 #define ldrbotl A3    // bottom-left LDR Blue
 // les PIN qu'on va brancher les sevo motor
@@ -24,9 +24,9 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 // Sensibility Horizontal et verticale
 int Hsensibility = 30;      // measurement sensitivity
 int Vsensibility = 30;      // measurement sensitivity
-int mode = 0;
+int mode = 1;
 // min and max of servo mouv
-int H_min = 25 , H_max = 173 , V_min = 0 , V_max = 180  ; 
+// int H_min = 25 , H_max = 173 , V_min = 25 , V_max = 180  ; 
 // declaration des variable pour recevoie des valeur des chaque LDR
 int topl, topr, botl, botr, avgtop, avgbot, avgleft, avgright = 0;
 // variable pour stocker la position acctuelle du chaque servo
@@ -53,8 +53,8 @@ void setup()
 
   verti_servo.attach(vertiPin); // Servo motor up-down movement
   hori_servo.attach(horiPin);   // Servo motor right-left movement
-  verti_servo.write(90);
-  hori_servo.write(90);
+  verti_servo.write(0);
+  hori_servo.write(0);
 
   // obtenir l'adresse IP du machine
   if (Ethernet.begin(mac) == 0) {
@@ -62,7 +62,7 @@ void setup()
     while(true);
   }
   Serial.println("Initialisation done .");
-  delay(2000);
+  delay(3000);
 }
 
 void loop()
@@ -70,7 +70,7 @@ void loop()
   // pour notifier la mode actuelle et activer le mode convonable
   pushLDR_Power() ;
   getControlObject();
-  Serial.print("mode=");
+  Serial.print("mode= ");
   Serial.println(mode);
   if (mode == 0)
   {
@@ -86,7 +86,7 @@ void loop()
 
 void automaticMode()
 {
-  // Lire les valeur des 4 LDRs
+ // Lire les valeur des 4 LDRs
   topr = analogRead(ldrtopr); // top right LDR
   topl = analogRead(ldrtopl); // top left LDR
   botr = analogRead(ldrbotr); // bot right LDR
@@ -112,11 +112,11 @@ void automaticMode()
   int Vdifferent = avgtop - avgbot;
   int Hdifferent = avgright - avgleft;
 
-  // Serial.println("----------------- Get Differrent -----------------");
-  // Serial.print("different LDRs top and LDRs bot : ");
-  // Serial.println(Vdifferent);
-  // Serial.print("different LDRs right and LDRs left : ");
-  // Serial.println(Hdifferent);
+  Serial.println("----------------- Get Differrent -----------------");
+  Serial.print("different LDRs top and LDRs bot : ");
+  Serial.println(Vdifferent);
+  Serial.print("different LDRs right and LDRs left : ");
+  Serial.println(Hdifferent);
 
   // commande de moteur horizontal **//
   // commande les moteur : si la valeur absulue différent entre top et bottom > de la sensibilite
@@ -127,19 +127,21 @@ void automaticMode()
     Serial.println(leftRightPosition);
     if (Hdifferent > 0)
     {
-      if(leftRightPosition < H_max)
+      if(leftRightPosition < 180)
       {   
-        hori_servo.write(leftRightPosition + step);
+        leftRightPosition = leftRightPosition + step ;
+        hori_servo.write(leftRightPosition);
       }
     }
     if (Hdifferent < 0)
     {
-      if (leftRightPosition > H_min)
+      if (leftRightPosition > 0)
       {
-        hori_servo.write(leftRightPosition - step);
+        leftRightPosition = leftRightPosition - step ;
+        hori_servo.write(leftRightPosition);
       }
     }
-    Serial.println("--------- horizontal Servo Control -------------");
+    // Serial.println("--------- horizontal Servo Control -------------");
   }
 
   // commande de moteur vertical **//
@@ -151,21 +153,22 @@ void automaticMode()
     Serial.println(upDownPosition);
     if (Vdifferent > 0)
     {
-      if (upDownPosition < V_max)
+      if (upDownPosition < 180)
       {
         verti_servo.write(upDownPosition + step);
       }
     }
     if (Vdifferent < 0)
     {
-      if (upDownPosition > V_min)
+      if (upDownPosition > 0)
       {
         verti_servo.write(upDownPosition - step);
       }
     }
-    Serial.println("--------- vertical Servo Control -------------");
+    // Serial.println("--------- vertical Servo Control -------------");
   }
   pushPosition();
+  // delay(100) ; 
 }
 
 void manualMode()
@@ -175,7 +178,6 @@ void manualMode()
   verti_servo.write(upDownPosition) ; 
   hori_servo.write(leftRightPosition) ; 
 }
-
 void pushPosition(){
   String PATH_NAME   = "/push";
   String qSHp ="?hposi=";
@@ -206,7 +208,6 @@ void pushPosition(){
     Serial.println("connection failed");
   }
 }
-
 void pushLDR_Power(){
    // connect to web server on port 80:
   if(client.connect(HOST_NAME, HTTP_PORT)) {
@@ -254,7 +255,7 @@ void getControlObject(){
       }
     }
   // *******************************************************
-// get Servo Position
+  // get Servo Position
         Serial.println();
         // preMode=cy[179]-'0';
         // Serial.println(preMode);
@@ -301,10 +302,10 @@ void getControlObject(){
         Serial.println(pre_Vposi);
         // verti_servo.write(v);
   // ********************************************************
-// end get Servo Position
-// get mode 
+  // end get Servo Position
+  // get mode 
         mode=cy[179]-'0';
-// end get mode         
+  // end get mode         
         cv=0;
         ch=0;
         cy="";

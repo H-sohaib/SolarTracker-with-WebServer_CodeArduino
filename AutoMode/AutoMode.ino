@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <Servo.h>
-// ****//
+// **//
 // decalarations des instance de servvo moteur
 Servo verti_servo;
 Servo hori_servo;
@@ -16,8 +16,8 @@ String HTTP_METHOD = "GET";
 char   HOST_NAME[] = "192.168.187.242"; // change to your PC's IP address
 
 // replacer des nemro des PINs par des variables siginifique
-#define ldrtopr A0    // top-right LDR
-#define ldrtopl A1    // top-left LDR
+#define ldrtopr A15   // top-right LDR
+#define ldrtopl A11    // top-left LDR
 #define ldrbotr A2    // bottom-right LDR
 #define ldrbotl A3    // bottom-left LDR
 
@@ -29,33 +29,29 @@ char   HOST_NAME[] = "192.168.187.242"; // change to your PC's IP address
 #define autoLed 3 // push button pour switcher le controle entre l'axe horizontal et vertical
 
 // Sensibility Horizontal et verticale
-int Hsensibility = 50;      // measurement sensitivity
-int Vsensibility = 50;      // measurement sensitivity
+int Hsensibility = 30;      // measurement sensitivity
+int Vsensibility = 30;      // measurement sensitivity
 
 int mode = 0;
 // declaration des variable pour recevoie des valeur des chaque LDR
 int topl, topr, botl, botr, avgtop, avgbot, avgleft, avgright = 0;
 // variable pour stocker la position acctuelle du chaque servo
 int leftRightPosition, upDownPosition = 0;
-int step = 1;
+int step = 5;
 
 
 void setup(){
-    // ******//
+    // **//
   // initialisation des Serial et les E/S direction
-  Serial.begin(9600);
-  pinMode(manueLed, OUTPUT);
-  pinMode(autoLed, OUTPUT);
+  Serial.begin(2000000);
 
   verti_servo.attach(vertiPin); // Servo motor up-down movement
   hori_servo.attach(horiPin);   // Servo motor right-left movement
-  verti_servo.write(40);
-  delay(500) ;
-  verti_servo.write(70);
+  verti_servo.write(50);
   hori_servo.write(90);
   
   Serial.println("initialisation done .");
-  delay(4000);
+  delay(2000);
 }
 
 void loop(){
@@ -72,15 +68,15 @@ void loop(){
   int avgleft = (topl + botl) / 2;  // average of left LDRs
   int avgright = (topr + botr) / 2; // average of right LDRs
 
-  Serial.println("-------------- Get avr --------------");
-  Serial.print("average of top LDRs : ");
-  Serial.println(avgtop);
-  Serial.print("average of bottom LDRs : ");
-  Serial.println(avgbot);
-  Serial.print("average of left LDRs :");
-  Serial.println(avgleft);
-  Serial.print("average of right LDRs :");
-  Serial.println(avgright);
+  // Serial.println("-------------- Get avr --------------");
+  // Serial.print("average of top LDRs : ");
+  // Serial.println(avgtop);
+  // Serial.print("average of bottom LDRs : ");
+  // Serial.println(avgbot);
+  // Serial.print("average of left LDRs :");
+  // Serial.println(avgleft);
+  // Serial.print("average of right LDRs :");
+  // Serial.println(avgright);
 
   // calculer le different entre (top et bottom) et entre (right et left)
   int Vdifferent = avgtop - avgbot;
@@ -97,11 +93,11 @@ void loop(){
   if (abs(Hdifferent) >= Hsensibility)
   {
     leftRightPosition = hori_servo.read();
-    Serial.print("left right Position : ");
-    Serial.println(leftRightPosition);
+    // Serial.print("left right Position : ");
+    // Serial.println(leftRightPosition);
     if (Hdifferent > 0)
     {
-      if(leftRightPosition < 173)
+      if(leftRightPosition < 180)
       {   
         leftRightPosition = leftRightPosition + step ;
         hori_servo.write(leftRightPosition);
@@ -109,13 +105,13 @@ void loop(){
     }
     if (Hdifferent < 0)
     {
-      if (leftRightPosition > 7)
+      if (leftRightPosition > 0)
       {
         leftRightPosition = leftRightPosition - step ;
         hori_servo.write(leftRightPosition);
       }
     }
-    Serial.println("--------- horizontal Servo Control -------------");
+    // Serial.println("--------- horizontal Servo Control -------------");
   }
 
   // commande de moteur vertical **//
@@ -125,22 +121,22 @@ void loop(){
     upDownPosition = verti_servo.read();
     Serial.print("up down Position : ");
     Serial.println(upDownPosition);
-    if (Vdifferent < 0)
+    if (Vdifferent > 0)
     {
-      if (upDownPosition < 173)
+      if (upDownPosition < 180)
       {
         verti_servo.write(upDownPosition + step);
       }
     }
-    if (Vdifferent > 0)
+    if (Vdifferent < 0)
     {
-      if (upDownPosition > 7)
+      if (upDownPosition > 0)
       {
         verti_servo.write(upDownPosition - step);
       }
     }
-    Serial.println("--------- vertical Servo Control -------------");
+    // Serial.println("--------- vertical Servo Control -------------");
   }
   
-  // delay(10) ;
+  delay(100) ;
 }
